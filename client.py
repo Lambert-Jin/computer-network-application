@@ -1,7 +1,16 @@
 import socket
 import sys
+import threading
 
-import select
+
+def receive_from_server(sock):
+    while True:
+        server_message = sock.recv(1024).decode()
+        if not server_message:
+            print("Server disconnected. Exiting.")
+            sys.exit()
+        print(server_message, end='')
+
 
 if len(sys.argv) != 4:
     print("Usage: python client.py <server_IP> <server_port> <client_udp_server_port>")
@@ -41,18 +50,16 @@ while True:
 
 inputs = [client_socket, sys.stdin]  # We want to check both the socket and stdin for input
 
+threading.Thread(target=receive_from_server, args=(client_socket,)).start()
+
 while True:
-    readable, _, _ = select.select(inputs, [], [])
-
-    # Received something from the server
-    if client_socket in readable:
-        server_message = client_socket.recv(1024).decode()
-        print(server_message, end='')  # This will print the message received from the server
-
-    # User input from the command line
-    if sys.stdin in readable:
-        user_input = input()
+    user_input = input()
+    if user_input == '/logout':
+        client_socket.send('/logout'.encode())
+        response = client_socket.recv(1024).decode()
+        print(response)
+        client_socket.close()
+        break
+    else:
         client_socket.send(user_input.encode())
 
-# 关闭套接字
-client_socket.close()

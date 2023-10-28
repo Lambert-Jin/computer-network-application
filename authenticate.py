@@ -36,11 +36,6 @@ class LoginSuccessState(AuthState):
 
     def handle(self, conn, credentials, failed_attempts, max_failed_attempts, addr):
         conn.send(b'200')
-        udp_port = conn.recv(1024).decode()
-        utc_now = datetime.datetime.now()
-        timestamp = utc_now.strftime('%d %b %Y %H:%M:%S')
-        log_entry = f"{self.username}; {timestamp}; {addr[0]}; {udp_port}"
-        logging.info(log_entry)
         if self.username in failed_attempts:
             failed_attempts[self.username]['count'] = 0
         return True, self.username

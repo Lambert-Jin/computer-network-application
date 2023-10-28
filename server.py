@@ -35,6 +35,27 @@ commands = """Available commands:
 logging.basicConfig(filename='userlog.txt', level=logging.INFO, format='%(message)s')
 
 
+def update_userlog(username, filename='userlog.txt'):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    new_lines = []
+    user_found = False
+    for line in lines:
+        line_parts = line.strip().split(';')
+        if line_parts[2].strip() == username:
+            user_found = True
+            continue
+        if user_found:  # If the user has been found, update the sequence number of subsequent lines
+            line_parts[0] = str(int(line_parts[0]) - 1)
+            new_lines.append('; '.join(line_parts) + '\n')
+        else:
+            new_lines.append(line)
+
+    with open(filename, 'w') as f:
+        f.writelines(new_lines)
+
+
 # 加载凭证
 def load_credentials(filename='credentials.txt'):
     credentials = {}
@@ -127,6 +148,11 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
         authenticated, username = authenticate(conn, credentials, failed_attempts, max_failed_attempts, addr)
         if authenticated:
             print(f'User {username} authenticated.')
+            udp_port = conn.recv(1024).decode()
+            utc_now = datetime.datetime.now()
+            timestamp = utc_now.strftime('%d %b %Y %H:%M:%S')
+            log_entry = f"{len(active_users) + 1}; {timestamp}; {username}; {addr[0]}; {udp_port}"
+            logging.info(log_entry)
             active_users[username] = {
                 'timestamp': datetime.datetime.now(),
                 'addr': addr,
@@ -182,7 +208,12 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
                 elif user_input == '/groupmsg':
                     pass
                 elif user_input == '/logout':
-                    pass
+                    if username in active_users:
+                        del active_users[username]
+                    update_userlog(username)
+                    conn.send("You have been logged out successfully.".encode())
+                    conn.close()
+                    break
                 elif user_input == '/p2pvideo':
                     pass
                 else:
@@ -214,6 +245,10 @@ if __name__ == '__main__':
 
     credentials = load_credentials()
     threads = []
+    with open('userlog.txt', 'w') as file:
+        file.write('')
+    with open('messagelog.txt', 'w') as file:
+        file.write('')
 
     try:
         while True:
