@@ -1,3 +1,4 @@
+import datetime
 import logging
 import socket
 import sys
@@ -12,11 +13,14 @@ MAX_CLIENTS = 5
 client_lock = threading.Lock()
 # 锁用于保护 failed_attempts 字典
 failed_attempts_lock = threading.Lock()
+message_number = 1  # 这应该是一个全局变量，脚本开始时进行初始化
+message_log_lock = threading.Lock()
 
 # 当前活跃的客户端数
 current_clients = 0
 # 存储失败尝试次数和封锁时间的字典
 failed_attempts = {}
+active_users = {}
 is_shutting_down = False
 
 commands = """Available commands:
@@ -96,25 +100,22 @@ def load_credentials(filename='credentials.txt'):
 def authenticate(conn, credentials, failed_attempts, max_failed_attempts, addr):
     # 初始化状态为等待用户名输入
     current_state = RequestUsernameState()
-    username, udp_port = None, None
 
     while True:
         # 调用当前状态的 handle 方法并获取下一个状态
-        next_state, username, udp_port = current_state.handle(conn, credentials, failed_attempts, max_failed_attempts,
-                                                              addr)
-
+        next_state, username = current_state.handle(conn, credentials, failed_attempts, max_failed_attempts,
+                                                    addr)
         # 如果到达了结束状态（这里以 True 为例），则退出循环
         if next_state is True:
             break
-
         # 更新当前状态
         current_state = next_state
 
-    return True, username, udp_port
+    return True, username
 
 
 def handle_client(conn, addr, credentials, max_failed_attempts):
-    global current_clients
+    global current_clients, active_users, message_number
     with client_lock:
         if current_clients >= MAX_CLIENTS:
             conn.send(b'Server is too busy. Please try again later.\n')
@@ -123,18 +124,57 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
         current_clients += 1
     try:
         print(f'Connection from {addr}')
-        authenticated, username, udp_port = authenticate(conn, credentials, failed_attempts, max_failed_attempts, addr)
+        authenticated, username = authenticate(conn, credentials, failed_attempts, max_failed_attempts, addr)
         if authenticated:
             print(f'User {username} authenticated.')
-            conn.send((commands+'\n').encode())
+            active_users[username] = {
+                'timestamp': datetime.datetime.now(),
+                'addr': addr,
+                'conn': conn  # 存储用户的连接
+            }
+            conn.send((commands + '\n').encode())
 
             # Command handling loop
             while True:
                 user_input = conn.recv(1024).decode().strip()
-                if user_input == '/msgto':
-                    pass
-                elif user_input == '/acitveuser':
-                    pass
+                print(user_input)
+                if user_input.startswith('/msgto'):
+                    parts = user_input.split(' ', 2)
+                    if len(parts) < 3:
+                        conn.send(b'Error: Invalid command format. Expected: /msgto USERNAME MESSAGE_CONTENT\n')
+                        continue
+                    target_username = parts[1]
+                    message_content = parts[2]
+
+                    with message_log_lock:  # 使用锁来确保线程安全
+                        with open('messagelog.txt', 'a') as file:
+                            timestamp = time.strftime('%d %b %Y %H:%M:%S', time.gmtime())
+                            log_entry = f"{message_number}; {timestamp}; {username}; {message_content}\n"
+                            file.write(log_entry)
+                            message_number += 1
+
+                        confirmation = f"Broadcast message at {timestamp}\n"
+                        conn.send(confirmation.encode())
+
+                        if target_username in active_users:
+                            target_conn = active_users[target_username]['conn']
+                            target_message = f"Message from {username}: {message_content}\n"
+                            target_conn.send(target_message.encode())
+                        else:
+                            conn.send(f"User {target_username} is not online.\n".encode())
+
+                elif user_input == '/activeuser':
+                    active_user_list = []
+                    for user, info in active_users.items():
+                        if user != username:  # Exclude the current user
+                            timestamp = info['timestamp'].strftime('%d %b %Y %H:%M:%S')
+                            formatted_info = f"{user}, active since {timestamp}."
+                            active_user_list.append(formatted_info)
+
+                    if active_user_list:
+                        conn.send(('\n'.join(active_user_list) + '\n').encode())
+                    else:
+                        conn.send(b'No other active users.\n')
                 elif user_input == '/creategroup':
                     pass
                 elif user_input == '/joingroup':
@@ -143,12 +183,11 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
                     pass
                 elif user_input == '/logout':
                     pass
-                elif user_input == 'p2pvideo':
+                elif user_input == '/p2pvideo':
                     pass
                 else:
                     error_message = "Invalid command selected. Please choose a valid command.\n"
-                    conn.send(error_message.encode())
-                    conn.send(commands.encode())
+                    conn.send((error_message + '\n' + commands + '\n').encode())
 
     finally:
         with client_lock:

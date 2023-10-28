@@ -1,6 +1,8 @@
 import socket
 import sys
 
+import select
+
 if len(sys.argv) != 4:
     print("Usage: python client.py <server_IP> <server_port> <client_udp_server_port>")
     sys.exit(1)
@@ -37,10 +39,20 @@ while True:
         print("You have been blocked due to multiple failed attempts. Please try again later.")
 # 在这里添加更多客户端功能，例如接收命令、发送消息等。
 
+inputs = [client_socket, sys.stdin]  # We want to check both the socket and stdin for input
+
 while True:
-    server_prompt = client_socket.recv(1024).decode()
-    user_input = input(server_prompt)
-    client_socket.send(user_input.encode())
+    readable, _, _ = select.select(inputs, [], [])
+
+    # Received something from the server
+    if client_socket in readable:
+        server_message = client_socket.recv(1024).decode()
+        print(server_message, end='')  # This will print the message received from the server
+
+    # User input from the command line
+    if sys.stdin in readable:
+        user_input = input()
+        client_socket.send(user_input.encode())
 
 # 关闭套接字
 client_socket.close()
