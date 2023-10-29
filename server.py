@@ -21,6 +21,8 @@ current_clients = 0
 # 存储失败尝试次数和封锁时间的字典
 failed_attempts = {}
 active_users = {}
+groups = {}
+user_sockets = {}
 is_shutting_down = False
 
 commands = """Available commands:
@@ -33,6 +35,23 @@ commands = """Available commands:
 /p2pvideo     : Send a video file to another active user via UDP."""
 
 logging.basicConfig(filename='userlog.txt', level=logging.INFO, format='%(message)s')
+
+
+def get_online_users():
+    online_users = set()
+    with open('userlog.txt', 'r') as f:
+        for line in f.readlines():
+            parts = line.strip().split(';')
+            online_users.add(parts[2].strip())  # 获取用户名并添加到集合中
+    return online_users
+
+
+def check_usernames_validity(usernames):
+    online_users = get_online_users()
+    for username in usernames:
+        if username not in online_users:
+            return False, f"User '{username}' is not an active user."
+    return True, None
 
 
 def update_userlog(username, filename='userlog.txt'):
@@ -147,14 +166,14 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
         print(f'Connection from {addr}')
         authenticated, username = authenticate(conn, credentials, failed_attempts, max_failed_attempts, addr)
         if authenticated:
+            user_sockets[username] = conn
             print(f'User {username} authenticated.')
             udp_port = conn.recv(1024).decode()
-            utc_now = datetime.datetime.now()
-            timestamp = utc_now.strftime('%d %b %Y %H:%M:%S')
+            timestamp = time.strftime('%d %b %Y %H:%M:%S', time.localtime())
             log_entry = f"{len(active_users) + 1}; {timestamp}; {username}; {addr[0]}; {udp_port}"
             logging.info(log_entry)
             active_users[username] = {
-                'timestamp': datetime.datetime.now(),
+                'timestamp': time.localtime(),
                 'addr': addr,
                 'conn': conn  # 存储用户的连接
             }
@@ -163,7 +182,6 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
             # Command handling loop
             while True:
                 user_input = conn.recv(1024).decode().strip()
-                print(user_input)
                 if user_input.startswith('/msgto'):
                     parts = user_input.split(' ', 2)
                     if len(parts) < 3:
@@ -188,7 +206,6 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
                             target_conn.send(target_message.encode())
                         else:
                             conn.send(f"User {target_username} is not online.\n".encode())
-
                 elif user_input == '/activeuser':
                     active_user_list = []
                     for user, info in active_users.items():
@@ -201,18 +218,100 @@ def handle_client(conn, addr, credentials, max_failed_attempts):
                         conn.send(('\n'.join(active_user_list) + '\n').encode())
                     else:
                         conn.send(b'No other active users.\n')
-                elif user_input == '/creategroup':
-                    pass
-                elif user_input == '/joingroup':
-                    pass
-                elif user_input == '/groupmsg':
-                    pass
+                elif user_input.startswith('/creategroup'):
+                    parts = user_input.split()
+                    if len(parts) < 3:
+                        conn.send(b"Error: Provide a group name and at least one username.\n")
+                        continue
+
+                    groupname = parts[1]
+                    usernames = parts[2:]
+
+                    validity, error_message = check_usernames_validity(usernames)
+                    if not validity:
+                        conn.send(error_message.encode())
+                        continue
+                    # 检查组名是否已经存在
+                    if groupname in groups:
+                        conn.send(f"A group chat (Name: {groupname}) already exists.\n".encode())
+                        continue
+                    # 检查组名的有效性
+                    if not groupname.isalnum():
+                        conn.send(b"Error: Group name must only consist of letters and numbers.\n")
+                        continue
+                    # 创建组并加入成员
+                    groups[groupname] = {user: False for user in [username] + usernames}
+                    # 将创建者设置为已加入状态
+                    groups[groupname][username] = True
+                    # 创建对应的日志文件
+                    with open(f"{groupname}_messagelog.txt", 'w') as file:
+                        pass  # 创建一个空文件
+
+                    conn.send(
+                        f"Group chat created with name: {groupname}, users in this room: {' '.join(usernames)}\n".encode())
+                elif user_input.startswith('/joingroup'):
+                    parts = user_input.split()
+                    if len(parts) != 2:
+                        conn.send(b"Error: Provide a group name to join.\n")
+                        continue
+
+                    groupname = parts[1]
+
+                    # 检查群组是否存在
+                    if groupname not in groups:
+                        conn.send(f"No group chat with name: {groupname} exists.\n".encode())
+                        continue
+
+                    # 检查用户是否被邀请加入群组
+                    if username in groups[groupname]:
+                        groups[groupname][username] = True
+                        conn.send(f"You have successfully joined the group chat: {groupname}\n".encode())
+                    else:
+                        conn.send(f"You have not been invited to join the group chat: {groupname}\n".encode())
+                elif user_input.startswith('/groupmsg'):
+                    parts = user_input.split(' ', 2)
+                    if len(parts) < 3:
+                        conn.send(b"Error: Provide a group name and a message.\n")
+                        continue
+
+                    groupname, message = parts[1], parts[2]
+
+                    # 检查组是否存在
+                    if groupname not in groups:
+                        conn.send(b"The group chat does not exist.\n")
+                        continue
+
+                    # 检查用户是否是组的成员
+                    if username not in groups[groupname]:
+                        conn.send(b"You are not in this group chat.\n")
+                        continue
+
+                    # 将消息添加到日志文件
+                    with open(f"{groupname}_messageLog.txt", 'a') as file:
+                        timestamp = time.strftime('%d %b %Y %H:%M:%S', time.localtime())
+                        message_number = sum(1 for line in open(f"{groupname}_messageLog.txt")) + 1
+                        log_entry = f"{message_number}; {timestamp}; {username}; {message}\n"
+                        file.write(log_entry)
+
+                    confirmation_msg = f"Group chat message sent. Message number: {message_number}, Timestamp: {timestamp}\n"
+                    conn.send(confirmation_msg.encode())
+
+                    formatted_time = time.strftime('%d/%m/%Y %H:%M', time.localtime())
+                    formatted_message = f"{formatted_time}, {groupname}, {username}: {message}\n"
+
+                    # 转发消息给组中的所有其他活跃成员
+                    for user, has_joined in groups[groupname].items():
+                        if has_joined and user != username:
+                            user_socket = user_sockets.get(user)
+                            if user_socket:
+                                user_socket.send(formatted_message.encode())
                 elif user_input == '/logout':
                     if username in active_users:
                         del active_users[username]
                     update_userlog(username)
                     conn.send("You have been logged out successfully.".encode())
-                    conn.close()
+                    if username in user_sockets:
+                        del user_sockets[username]
                     break
                 elif user_input == '/p2pvideo':
                     pass
