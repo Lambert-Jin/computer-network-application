@@ -48,8 +48,6 @@ while True:
         print("You have been blocked due to multiple failed attempts. Please try again later.")
 # 在这里添加更多客户端功能，例如接收命令、发送消息等。
 
-inputs = [client_socket, sys.stdin]  # We want to check both the socket and stdin for input
-
 threading.Thread(target=receive_from_server, args=(client_socket,)).start()
 
 while True:
