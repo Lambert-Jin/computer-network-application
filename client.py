@@ -104,7 +104,8 @@ def p2pvideo(command):
     target_port = user_data[target_username]['port']
 
     send_file_udp(filename, target_ip, target_port)
-    print(f"File {filename} sent to {target_username}.")
+    print(f"{filename} has been uploaded.")
+
 
 
 def udp_server_listener():
@@ -130,7 +131,8 @@ def udp_server_listener():
                     break
                 file.write(data)
 
-        print(f"A file ({filename}) has been received from {addr[0]}")
+        username, _ = udp_server_socket.recvfrom(UDP_BUFFER_SIZE)
+        print(f"Received ({filename}) from {username.decode()}")
         filename = None
         received_data = b""
 
@@ -162,7 +164,8 @@ while True:
         user_input = input("Please enter your password: ")
         client_socket.send(user_input.encode())
     elif server_code == '200':  # 登录成功
-        print("You are successfully logged in.")
+        print("Welcome to Tessenger!")
+        username = client_socket.recv(1024).decode()
         # 发送UDP端口（如果需要）
         client_socket.send(str(client_udp_server_port).encode())
         break
@@ -182,6 +185,9 @@ while True:
         print(response)
         client_socket.close()
         break
+    elif user_input.startswith('/msgto'):
+        print('message sent at' + time.localtime())
+        client_socket.send(user_input.encode())
     elif user_input.startswith('/p2pvideo'):
         p2pvideo(user_input)
     else:

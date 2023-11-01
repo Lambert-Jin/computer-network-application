@@ -24,14 +24,8 @@ active_users = {}
 groups = {}
 user_sockets = {}
 
-commands = """Available commands:
-/msgto        : Private message to another active user.
-/activeuser   : Display active users.
-/creategroup  : Create a group chat room.
-/joingroup    : Join an existing group chat room.
-/groupmsg     : Send a message to a specific group.
-/logout       : Log out.
-/p2pvideo     : Send a video file to another active user via UDP."""
+commands = """Enter one of the following commands (/msgto, /activeuser, /creategroup,
+/joingroup, /groupmsg, /logout):"""
 
 logging.basicConfig(filename='userlog.txt', level=logging.INFO, format='%(message)s')
 
