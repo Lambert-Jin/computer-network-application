@@ -2,6 +2,7 @@ import os
 import socket
 import sys
 import threading
+import time
 
 user_data = {}
 
@@ -75,10 +76,13 @@ def send_file_udp(filename, target_ip, target_port):
     with open(filename, 'rb') as file:
         while True:
             data = file.read(FILE_SIZE)
+            time.sleep(0.001)
             if not data:
                 break  # File reading is done
             udp_socket.sendto(data, (target_ip, target_port))
+    udp_socket.sendto(b'FILE_TRANSFER_COMPLETE', (target_ip, target_port))
     udp_socket.close()
+
 
 def p2pvideo(command):
     parts = command.split()
@@ -122,10 +126,9 @@ def udp_server_listener():
         with open(filename, 'wb') as file:
             while True:
                 data, addr = udp_server_socket.recvfrom(UDP_BUFFER_SIZE)
-                if not data:
+                if data == b'FILE_TRANSFER_COMPLETE':
                     break
                 file.write(data)
-                file.flush()
 
         print(f"A file ({filename}) has been received from {addr[0]}")
         filename = None
