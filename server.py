@@ -223,58 +223,6 @@ def load_credentials(filename='credentials.txt'):
             credentials[username] = password
     return credentials
 
-
-# 认证用户
-# def authenticate(conn, credentials, max_failed_attempts, addr):
-#     global failed_attempts
-#     with failed_attempts_lock:
-#         # 发送请求用户名的状态码
-#         conn.send(b'100')
-#         username = conn.recv(1024).decode()
-#
-#         # 发送请求密码的状态码
-#         conn.send(b'101')
-#         password = conn.recv(1024).decode()
-#
-#         # 初始化失败尝试次数和阻塞时间
-#         if username not in failed_attempts:
-#             failed_attempts[username] = {'count': 0, 'block_until': 0}
-#
-#         # 获取当前时间
-#         current_time = time.time()
-#
-#         # 检查用户是否被阻塞
-#         if current_time < failed_attempts[username]['block_until']:
-#             conn.send(b'401')
-#             return False, None, None
-#
-#         # 检查用户名和密码是否有效
-#         if username in credentials and credentials[username] == password:
-#             # 发送成功的状态码
-#             conn.send(b'200')
-#             # 获取 UDP 端口
-#             udp_port = conn.recv(1024).decode()
-#             # 记录时间戳和其他登录信息
-#             timestamp = time.strftime('%d %b %Y %H:%M:%S', time.gmtime())
-#             log_entry = f"{username}; {timestamp}; {addr[0]}; {udp_port}"
-#             logging.info(log_entry)
-#             # 重置失败尝试次数
-#             failed_attempts[username]['count'] = 0
-#             return True, username, udp_port
-#         else:
-#             # 发送失败的状态码
-#             conn.send(b'400')
-#             # 更新失败尝试次数
-#             failed_attempts[username]['count'] += 1
-#
-#             # 检查是否需要阻塞用户
-#             if failed_attempts[username]['count'] >= max_failed_attempts:
-#                 failed_attempts[username]['block_until'] = current_time + 10
-#                 conn.send(b'401')
-#
-#             return False, None, None
-
-
 # 处理客户端连接
 def authenticate(conn, credentials, failed_attempts, max_failed_attempts, addr):
     # 初始化状态为等待用户名输入
