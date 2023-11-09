@@ -188,7 +188,6 @@ def logout(conn, username, active_users, user_sockets):
     if username in active_users:
         del active_users[username]
     update_userlog(username)
-    conn.send("You have been logged out successfully.".encode())
     if username in user_sockets:
         del user_sockets[username]
     return True
@@ -363,7 +362,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', server_port))
+    server_socket.bind(('127.0.0.1', server_port))
     server_socket.listen(5)
 
     credentials = load_credentials()
@@ -377,7 +376,7 @@ if __name__ == '__main__':
         while True:
             print('Waiting for a connection...')
             conn, addr = server_socket.accept()
-
+            print('hello')
             client_thread = threading.Thread(target=handle_client, args=(conn, addr, credentials, max_failed_attempts))
             client_thread.start()
             threads.append(client_thread)  # 将新线程添加到列表中

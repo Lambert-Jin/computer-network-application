@@ -63,7 +63,7 @@ def receive_from_server(sock):
             print(server_message, end='')
 
 
-def send_file_udp(filename, target_ip, target_port):
+def send_file_udp(username, filename, target_ip, target_port):
     FILE_SIZE = 1024  # Size of the chunks we'll use to send the file
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -81,10 +81,11 @@ def send_file_udp(filename, target_ip, target_port):
                 break  # File reading is done
             udp_socket.sendto(data, (target_ip, target_port))
     udp_socket.sendto(b'FILE_TRANSFER_COMPLETE', (target_ip, target_port))
+    udp_socket.sendto(username.encode(), (target_ip, target_port))
     udp_socket.close()
 
 
-def p2pvideo(command):
+def p2pvideo(command, username):
     parts = command.split()
     if len(parts) != 3:
         print("Error: Invalid format. Use: /p2pvideo username filename")
@@ -103,9 +104,8 @@ def p2pvideo(command):
     target_ip = user_data[target_username]['ip']
     target_port = user_data[target_username]['port']
 
-    send_file_udp(filename, target_ip, target_port)
+    send_file_udp(username, filename, target_ip, target_port)
     print(f"{filename} has been uploaded.")
-
 
 
 def udp_server_listener():
@@ -181,14 +181,13 @@ while True:
     user_input = input()
     if user_input == '/logout':
         client_socket.send('/logout'.encode())
-        response = client_socket.recv(1024).decode()
-        print(response)
+        print(f'Bye, {username}!')
         client_socket.close()
         break
     elif user_input.startswith('/msgto'):
         print('message sent at' + time.localtime())
         client_socket.send(user_input.encode())
     elif user_input.startswith('/p2pvideo'):
-        p2pvideo(user_input)
+        p2pvideo(user_input, username)
     else:
         client_socket.send(user_input.encode())

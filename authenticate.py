@@ -36,6 +36,8 @@ class LoginSuccessState(AuthState):
 
     def handle(self, conn, credentials, failed_attempts, max_failed_attempts, addr):
         conn.send(b'200')
+        message = f'{self.username}'
+        conn.send(message.encode())
         if self.username in failed_attempts:
             failed_attempts[self.username]['count'] = 0
         return True, self.username
