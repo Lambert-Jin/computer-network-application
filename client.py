@@ -182,10 +182,10 @@ while True:
     if user_input == '/logout':
         client_socket.send('/logout'.encode())
         print(f'Bye, {username}!')
+        time.sleep(1)
         client_socket.close()
         break
     elif user_input.startswith('/msgto'):
-        print('message sent at' + time.localtime())
         client_socket.send(user_input.encode())
     elif user_input.startswith('/p2pvideo'):
         p2pvideo(user_input, username)

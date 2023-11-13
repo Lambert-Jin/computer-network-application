@@ -1,11 +1,29 @@
 # computer-network-application
-Messenger and WhatsApp are widely used as a method for large groups of people to have
-conversations online. In this assignment, you will have the opportunity to implement your own version
-of a messaging and video talk application. Your application is based on a client-server model consisting
-of one server and multiple clients communicating concurrently. The text messages should be
-communicated using TCP for the reason of reliability, while the video (we will use video files instead
-of capturing the live video streams from cameras and microphones) should be communicated using UDP
-for the reason of low latency. Your application will support a range of functions that are typically found
-on messaging apps including authentication, message one participant (i.e., private chat), build the group
-chat for part of the participants, and uploading video streams (i.e., files in this assignment). You will be
-designing custom application protocols based on TCP and UDP.
+
+## 概述
+这个项目是一个socket编程的实现，使用python的socket库实现了一个网络在线聊天室程序。程序基于一个服务器-客户端模型，
+由一个服务器和多个并发通信的客户端组成，其中文本信息使用TCP协议进行通信，视频(使用MP4文件代替实时的视频流)使用UDP协议进行客户端与客户端之间的p2p通信。
+该程序实现了一些基础的功能如登录系统，私人信息功能，群组功能，查看用户是否在线，p2p传输视频。这个聊天程序通过命令行进行交互
+
+## 核心特性
+- 登录功能：服务器可以支持多个客户端同时链接，并发登录。如果同一个账户名多次输入密码错误，该用户名会被禁止登录一段时间（即使更换IP也会被禁止）
+- 查看用户是否在线： 客户端可以向服务器查询有哪些用户在线。
+- 私人信息功能：一个用户可以向另一个在线用户发送信息
+- 群组功能：用户可以向在线用户发送建立群聊的邀请，被邀请的用户可以加入群聊。在群聊中可以自由发送文本，所有在群中的在线用户都会收到消息，
+也支持查看历史消息的功能。
+- p2p视频传输：基于UDP协议实现了不依赖服务器，两个用户之间直接传输视频文件。
+- 日志功能：服务器会在日志中记录用户登录，在线用户，聊天记录等日志信息。
+
+## 难点以及解决思路
+- 在实现登录系统的时候，用户会有多种状态：等待输入用户名，等待输入密码，密码错误但可以继续尝试，密码错误但达到尝试上限，登录成功。
+为了处理状态，我使用了状态模式，将每种状态对应的逻辑都封装为一个状态类。最后在服务端实现一个状态机。这样做提高了代码的可拓展性和可读性，
+便于以后可能会添加更多不同的状态。
+
+- 客户端需要处理多种输入输出：键盘的输入，接收服务器的信息，接收别的客户端发送的信息，所以我在这里使用了多线程，为这三个输入输出都创建了一个线程，
+这样就可以并发的接收输入输出。
+
+- 为了能在日志系统中记录有序的消息编号，我在日志系统中使用了锁，防止多个用户同时发消息带来的并发问题。
+
+## 后续的改进
+- 可以在后端部署服务器，实现持久化的数据储存
+- 可以添加图形化的前端界面，提供更好的操作体验。

@@ -23,7 +23,11 @@ class RequestPasswordState(AuthState):
 
     def handle(self, conn, credentials, failed_attempts, max_failed_attempts, addr):
         conn.send(b'101')
+        current_time = time.time()
         password = conn.recv(1024).decode()
+        if (self.username in failed_attempts) and current_time <= failed_attempts[self.username]['block_until']:
+            conn.send(b'401')
+            return RequestUsernameState(), self.username
         if self.username in credentials and credentials[self.username] == password:
             return LoginSuccessState(self.username), self.username
         else:
@@ -73,5 +77,3 @@ class LoginFailedState(AuthState):
                     conn.send(b'400')
                     failed_attempts[self.username] = {'count': 0, 'block_until': 0}
                     return RequestUsernameState(), self.username
-
-
